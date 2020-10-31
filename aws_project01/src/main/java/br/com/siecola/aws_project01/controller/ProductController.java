@@ -1,8 +1,10 @@
 package br.com.siecola.aws_project01.controller;
 
 
+import br.com.siecola.aws_project01.enums.EventType;
 import br.com.siecola.aws_project01.model.Product;
 import br.com.siecola.aws_project01.repository.ProductRepository;
+import br.com.siecola.aws_project01.service.ProductPublisher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,11 +18,15 @@ import java.util.Optional;
 public class ProductController {
 
     private ProductRepository productRepository;
+    private ProductPublisher productPublisher;
 
     @Autowired
-    public ProductController(ProductRepository productRepository) {
+    public ProductController(ProductRepository productRepository,
+                             ProductPublisher productPublisher) {
         this.productRepository = productRepository;
+        this.productPublisher = productPublisher;
     }
+
 
     @GetMapping
     public Iterable<Product> findAll() {
@@ -40,7 +46,12 @@ public class ProductController {
     @PostMapping
     public ResponseEntity<Product> saveProduct(
             @RequestBody @Valid Product product) {
-        return new ResponseEntity<Product>(productRepository.save(product),
+        Product productCreated = productRepository.save(product);
+
+        productPublisher.publishProductEvent(productCreated,
+                EventType.PRODUCT_CREATED, "matilde");
+
+        return new ResponseEntity<Product>(productCreated,
                 HttpStatus.CREATED);
     }
 
@@ -49,20 +60,34 @@ public class ProductController {
             @RequestBody @Valid Product product, @PathVariable("id") long id) {
         if (productRepository.existsById(id)) {
             product.setId(id);
+
+            Product productUpdate = productRepository.save(product);
+
+            productPublisher.publishProductEvent(product,
+                    EventType.PRODUCT_UPDATE, "doralice");
+
             return new ResponseEntity<Product>(productRepository.save(product),
                     HttpStatus.OK);
+
         } else {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
     }
+
 
     @DeleteMapping(path = "/{id}")
     public ResponseEntity<Product> deleteProduct(@PathVariable("id") long id) {
         Optional<Product> optProduct = productRepository.findById(id);
         if (optProduct.isPresent()) {
             Product product = optProduct.get();
+
             productRepository.delete(product);
+
+            productPublisher.publishProductEvent(product,
+                    EventType.PRODUCT_DELETED, "hannah");
+
             return new ResponseEntity<Product>(product, HttpStatus.OK);
+
         } else {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
